@@ -394,6 +394,59 @@ check("frequency_matched badge in table", "frequency_matched" in rt_jsx)
 check("freq-match-badge class", "freq-match-badge" in rt_jsx)
 
 
+# ─── 20. Passive Radar — Pipeline Status ──────────────────────────────────────
+section("20. Passive Radar — Status")
+r = httpx.get(f"{BASE}/api/radar/status")
+check("Radar status 200", r.status_code == 200)
+st = r.json()
+check("Has node_id", "node_id" in st)
+check("Has config with rx_lat", "rx_lat" in st.get("config", {}))
+
+# ─── 21. Passive Radar — receiver.json ────────────────────────────────────────
+section("21. Passive Radar — receiver.json")
+r = httpx.get(f"{BASE}/api/radar/data/receiver.json")
+check("receiver.json 200", r.status_code == 200)
+rj = r.json()
+check("Has lat", "lat" in rj)
+check("Has lon", "lon" in rj)
+check("Has version", rj.get("version") == "retina-passive-radar")
+
+# ─── 22. Passive Radar — aircraft.json ────────────────────────────────────────
+section("22. Passive Radar — aircraft.json (empty)")
+r = httpx.get(f"{BASE}/api/radar/data/aircraft.json")
+check("aircraft.json 200", r.status_code == 200)
+aj = r.json()
+check("Has now", "now" in aj)
+check("Has aircraft array", isinstance(aj.get("aircraft"), list))
+
+# ─── 23. Passive Radar — Ingest detection frame ──────────────────────────────
+section("23. Passive Radar — Ingest Detections")
+# Send multiple frames to create a confirmed track
+frames = []
+for i in range(5):
+    frames.append({
+        "timestamp": 1749190409000 + i * 500,
+        "delay": [33.5],
+        "doppler": [65.0],
+        "snr": [12.0],
+    })
+r = httpx.post(f"{BASE}/api/radar/detections", json={"frames": frames})
+check("Ingest 200", r.status_code == 200)
+ir = r.json()
+check("Frames processed", ir.get("frames_processed") == 5)
+check("Has tracks >= 1", ir.get("tracks", 0) >= 1)
+
+# Verify tracks appear in aircraft.json
+r = httpx.get(f"{BASE}/api/radar/data/aircraft.json")
+aj = r.json()
+check("Aircraft populated after ingest", len(aj.get("aircraft", [])) >= 1)
+if aj["aircraft"]:
+    ac = aj["aircraft"][0]
+    check("Aircraft has hex", "hex" in ac)
+    check("Aircraft has lat/lon", "lat" in ac and "lon" in ac)
+    check("Aircraft has gs", "gs" in ac)
+
+
 # ─── Summary ──────────────────────────────────────────────────────────────────
 section("SUMMARY")
 total = 0
