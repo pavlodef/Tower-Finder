@@ -103,18 +103,18 @@ def _parse_tv_line(line: str) -> Optional[dict]:
             return None
 
         # Parse ERP
-        erp_str = parts[13]
+        erp_str = parts[14]
         erp_kw = _parse_erp_kw(erp_str)
 
         # Parse coordinates (DMS)
-        lat_ns = parts[18]
-        lat_d = int(parts[19])
-        lat_m = int(parts[20])
-        lat_s = float(parts[21])
-        lon_ew = parts[22]
-        lon_d = int(parts[23])
-        lon_m = int(parts[24])
-        lon_s = float(parts[25])
+        lat_ns = parts[19]
+        lat_d = int(parts[20])
+        lat_m = int(parts[21])
+        lat_s = float(parts[22])
+        lon_ew = parts[23]
+        lon_d = int(parts[24])
+        lon_m = int(parts[25])
+        lon_s = float(parts[26])
 
         lat = lat_d + lat_m / 60 + lat_s / 3600
         if lat_ns == "S":
@@ -124,7 +124,7 @@ def _parse_tv_line(line: str) -> Optional[dict]:
             lon = -lon
 
         # Parse antenna height
-        antenna_height_str = parts[15]  # HAAT in meters
+        antenna_height_str = parts[16]  # HAAT in meters
         antenna_height = None
         try:
             antenna_height = float(antenna_height_str)
@@ -181,18 +181,18 @@ def _parse_fm_line(line: str) -> Optional[dict]:
         freq_mhz = float(freq_match.group(1))
 
         # Parse ERP (two fields: horizontal, vertical)
-        erp_h_str = parts[13]
+        erp_h_str = parts[14]
         erp_kw = _parse_erp_kw(erp_h_str)
 
         # Parse coordinates
-        lat_ns = parts[18]
-        lat_d = int(parts[19])
-        lat_m = int(parts[20])
-        lat_s = float(parts[21])
-        lon_ew = parts[22]
-        lon_d = int(parts[23])
-        lon_m = int(parts[24])
-        lon_s = float(parts[25])
+        lat_ns = parts[19]
+        lat_d = int(parts[20])
+        lat_m = int(parts[21])
+        lat_s = float(parts[22])
+        lon_ew = parts[23]
+        lon_d = int(parts[24])
+        lon_m = int(parts[25])
+        lon_s = float(parts[26])
 
         lat = lat_d + lat_m / 60 + lat_s / 3600
         if lat_ns == "S":
@@ -202,7 +202,7 @@ def _parse_fm_line(line: str) -> Optional[dict]:
             lon = -lon
 
         # Parse antenna height (HAAT)
-        antenna_height_str = parts[15]
+        antenna_height_str = parts[16]
         antenna_height = None
         try:
             antenna_height = float(antenna_height_str)
