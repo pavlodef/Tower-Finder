@@ -156,5 +156,5 @@ async def fetch_broadcast_systems(
         else:
             return await _paginate_query(
                 client, headers, _FREQ_RANGE_QUERY, base_kwargs,
-                max_pages=max_pages, page_size=10,
+                max_pages=max_pages, page_size=20,
             )

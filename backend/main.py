@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
 from maprad_client import fetch_broadcast_systems
+from fcc_client import fetch_fcc_broadcast_systems
 from calculations import (
     process_and_rank, reload_config, _CONFIG_PATH,
     DEFAULT_RADIUS_KM, DEFAULT_LIMIT, parse_user_frequencies,
@@ -97,9 +98,6 @@ async def find_towers(
     """
     Return nearby broadcast towers ranked for passive-radar suitability.
     """
-    if not API_KEY:
-        raise HTTPException(status_code=500, detail="MAPRAD_API_KEY not configured")
-
     source = source.lower()
     if source == "auto":
         source = _detect_source(lat, lon)
@@ -114,11 +112,28 @@ async def find_towers(
     user_freqs = parse_user_frequencies(frequencies)
 
     try:
-        raw = await fetch_broadcast_systems(
-            API_KEY, lat, lon, radius_km=effective_radius, source=source,
-        )
+        if source == "us":
+            # Use FCC as primary source for US (more complete than Maprad)
+            raw = await fetch_fcc_broadcast_systems(lat, lon, radius_km=effective_radius)
+            # Supplement with Maprad if API key is available
+            if API_KEY:
+                try:
+                    maprad_raw = await fetch_broadcast_systems(
+                        API_KEY, lat, lon, radius_km=effective_radius, source=source,
+                    )
+                    raw.extend(maprad_raw)
+                except Exception:
+                    logging.warning("Maprad supplement failed, using FCC data only")
+        else:
+            if not API_KEY:
+                raise HTTPException(status_code=500, detail="MAPRAD_API_KEY not configured")
+            raw = await fetch_broadcast_systems(
+                API_KEY, lat, lon, radius_km=effective_radius, source=source,
+            )
+    except HTTPException:
+        raise
     except Exception as exc:
-        logging.exception("Maprad API call failed")
+        logging.exception("Tower data fetch failed")
         raise HTTPException(status_code=502, detail=f"Upstream API error: {exc}")
 
     # Auto-resolve altitude if not provided
