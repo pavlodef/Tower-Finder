@@ -24,6 +24,9 @@ COPY backend/ ./backend/
 # Built frontend
 COPY --from=frontend-build /app/frontend/dist /app/frontend/dist
 
+# tar1090 static files
+COPY tar1090/html /app/tar1090/html
+
 # Nginx config
 COPY deploy/nginx.conf /etc/nginx/sites-available/default
 

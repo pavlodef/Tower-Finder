@@ -13,6 +13,7 @@ from calculations import (
     process_and_rank, reload_config, _CONFIG_PATH,
     DEFAULT_RADIUS_KM, DEFAULT_LIMIT, parse_user_frequencies,
 )
+from passive_radar import PassiveRadarPipeline, DEFAULT_NODE_CONFIG
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -257,4 +258,100 @@ async def tower_stats_summary():
         "total_selections": len(selections),
         "unique_towers": len(tower_usage),
         "tower_usage": [{"tower": k, "selections": v} for k, v in ranked],
+    }
+
+
+# ── Passive Radar / tar1090 Data Feed ────────────────────────────────────────
+
+_TAR1090_DATA_DIR = os.path.join(os.path.dirname(__file__), "tar1090_data")
+os.makedirs(_TAR1090_DATA_DIR, exist_ok=True)
+
+# Global pipeline instance — processes incoming detection frames in real-time
+_radar_pipeline = PassiveRadarPipeline(DEFAULT_NODE_CONFIG)
+
+# Write initial receiver.json
+_receiver_json = _radar_pipeline.generate_receiver_json()
+with open(os.path.join(_TAR1090_DATA_DIR, "receiver.json"), "w") as _f:
+    json.dump(_receiver_json, _f)
+
+
+@app.get("/api/radar/data/receiver.json")
+async def tar1090_receiver():
+    """Serve tar1090 receiver.json for the passive radar site."""
+    return _radar_pipeline.generate_receiver_json()
+
+
+@app.get("/api/radar/data/aircraft.json")
+async def tar1090_aircraft():
+    """Serve tar1090 aircraft.json with current tracked targets."""
+    return _radar_pipeline.generate_aircraft_json()
+
+
+@app.post("/api/radar/detections")
+async def ingest_detections(body: dict = Body(...)):
+    """Ingest a detection frame from a passive radar node.
+
+    Expected body: {"timestamp": int, "delay": [...], "doppler": [...], "snr": [...]}
+    Or a batch: {"frames": [{...}, ...]}
+    """
+    frames = body.get("frames", [body]) if "frames" in body else [body]
+    processed = 0
+    for frame in frames:
+        if "timestamp" not in frame:
+            continue
+        _radar_pipeline.process_frame(frame)
+        processed += 1
+
+    # Persist latest aircraft.json to disk
+    aircraft_data = _radar_pipeline.generate_aircraft_json()
+    with open(os.path.join(_TAR1090_DATA_DIR, "aircraft.json"), "w") as f:
+        json.dump(aircraft_data, f)
+
+    return {
+        "status": "ok",
+        "frames_processed": processed,
+        "tracks": len(aircraft_data["aircraft"]),
+    }
+
+
+@app.post("/api/radar/load-file")
+async def load_detection_file(body: dict = Body(...)):
+    """Load a .detection file from a path on the server.
+
+    Expected body: {"path": "/path/to/file.detection"}
+    """
+    filepath = body.get("path", "")
+    if not filepath or not os.path.isfile(filepath):
+        raise HTTPException(status_code=400, detail="File not found")
+    if not filepath.endswith(".detection"):
+        raise HTTPException(status_code=400, detail="Only .detection files accepted")
+
+    tracks = _radar_pipeline.process_file(filepath)
+    aircraft_data = _radar_pipeline.generate_aircraft_json()
+    with open(os.path.join(_TAR1090_DATA_DIR, "aircraft.json"), "w") as f:
+        json.dump(aircraft_data, f)
+
+    return {
+        "status": "ok",
+        "tracks": len(tracks),
+        "aircraft": aircraft_data["aircraft"],
+    }
+
+
+@app.get("/api/radar/status")
+async def radar_status():
+    """Return current passive radar pipeline status."""
+    confirmed = _radar_pipeline.tracker.get_confirmed_tracks()
+    return {
+        "node_id": _radar_pipeline.node_id,
+        "total_tracks": len(_radar_pipeline.tracker.tracks),
+        "confirmed_tracks": len(confirmed),
+        "config": {
+            "rx_lat": _radar_pipeline.config["rx_lat"],
+            "rx_lon": _radar_pipeline.config["rx_lon"],
+            "tx_lat": _radar_pipeline.config["tx_lat"],
+            "tx_lon": _radar_pipeline.config["tx_lon"],
+            "FC": _radar_pipeline.config["FC"],
+            "Fs": _radar_pipeline.config["Fs"],
+        },
     }
