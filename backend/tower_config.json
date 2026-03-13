@@ -50,7 +50,7 @@
   },
   "receiver": {
     "rx_antenna_gain_dbi": 6.0,
-    "sensitivity_dbm": -95.0
+    "sensitivity_dbm": -120.0
   },
   "broadcast_bands": {
     "FM": [
@@ -74,6 +74,6 @@
   },
   "search": {
     "default_radius_km": 80,
-    "default_limit": 20
+    "default_limit": 50
   }
 }
